@@ -4,9 +4,9 @@ pub enum Token {
     MINUS,
     ASSIGN,
 
-    IDENT(Vec<char>),
-    NUM(Vec<char>),
-    SPACE(Vec<char>),
+    IDENT(String),
+    NUM(String),
+    SPACE(String),
 
     FUNCTION,
     LOCAL,
@@ -21,9 +21,8 @@ pub enum Token {
 }
 
 
-pub fn get_keyword_token(ident: &Vec<char>) -> Option<Token> {
-    let identifier: String = ident.into_iter().collect();
-    match identifier.as_str() {
+pub fn get_keyword_token(ident: &String) -> Option<Token> {
+    match ident.as_str() {
         "function" => Some(Token::FUNCTION),
         "local" => Some(Token::LOCAL),
         "true" => Some(Token::TRUE),

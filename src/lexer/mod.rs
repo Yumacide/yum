@@ -17,7 +17,7 @@ impl Lexer {
         }
     }
 
-    fn read_ident(&mut self) -> Vec<char> {
+    fn read_ident(&mut self) -> String {
         let start = self.cursor;
 
         println!("{} {}", self.char, self.cursor);
@@ -25,27 +25,28 @@ impl Lexer {
             self.next_char();
             println!("{} {}", self.char, self.cursor);
         }
-        self.input[start .. self.cursor].to_vec()
+
+        self.input[start .. self.cursor].to_vec().iter().collect()
     }
 
-    fn read_number(&mut self) -> Vec<char> {
+    fn read_number(&mut self) -> String {
         let start = self.cursor;
 
         while self.cursor < self.input.len() && (self.char.is_numeric() || self.char == '.') {
             self.next_char();
         }
 
-        self.input[start .. self.cursor].to_vec()
+        self.input[start .. self.cursor].to_vec().iter().collect()
     }
 
-    fn read_whitespace(&mut self) -> Vec<char> {
+    fn read_whitespace(&mut self) -> String {
         let start = self.cursor;
 
         while self.cursor < self.input.len() && self.char.is_whitespace() {
             self.next_char();
         }
 
-        self.input[start .. self.cursor].to_vec()
+        self.input[start .. self.cursor].to_vec().iter().collect()
     }
 
     pub fn next_char(&mut self) {
