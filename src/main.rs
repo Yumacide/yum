@@ -1,10 +1,10 @@
-use std::io;
+use std::{env, fs};
 
 mod lexer;
 
 fn main() {
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("Failed to read stdin");
-
+    let mut args = env::args();
+    args.next();
+    let input = String::from_utf8(fs::read(args.next().unwrap()).expect("")).expect("");
     println!("{:?}", lexer::lex(input));
 }
