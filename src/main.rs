@@ -1,6 +1,10 @@
 use std::{env, fs};
 
-mod lexer;
+mod parser;
+#[cfg(test)]
+mod tests;
+
+use parser::lexer;
 
 fn main() {
     let mut args = env::args();
