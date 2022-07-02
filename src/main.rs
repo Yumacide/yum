@@ -1,35 +1,25 @@
-use std::{env, fs, str};
+use std::{fs, str};
+
+use clap::Parser;
+use logos::Logos;
+
+use crate::ast::lexer::Token;
 
 mod ast;
 
-#[macro_use]
-mod macros;
-
-use logos::Logos;
-
-use crate::parser::lexer::Token;
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+	// The name of the file to compile
+	#[clap(value_parser)]
+	filename: String,
+}
 
 fn main() {
-	let mut args = env::args();
-	args.next();
-
-	let filename = args.next().unwrap();
-	let src = fs::read(filename).unwrap();
+	let args = Args::parse();
+	let src = fs::read(args.filename).unwrap();
 	let src = str::from_utf8(&src).unwrap();
 
 	let lex = Token::lexer(src);
-	lex.for_each(|x| println!("{:?} foo", x));
-	println!("ran");
-	/*
-	let mut args = env::args();
-	args.next();
-	let filename = args.next().unwrap();
-	Parser::parse(
-		fs::read(&filename)
-			.unwrap()
-			.into_iter()
-			.map(|x| x as char)
-			.collect(),
-		filename,
-	);*/
+	lex.for_each(|x| println!("{:?}", x));
 }
