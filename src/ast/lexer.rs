@@ -79,14 +79,30 @@ pub enum Token {
 	LSquare,
 	#[token("]")]
 	RSquare,
+	#[token("|")]
+	Pipe,
 
-	/* Liter */
-	#[regex(r"\s+")]
+	#[token(".")]
+	Dot,
+	#[token(",")]
+	Comma,
+
+	/* Literals */
+	#[regex(r"\.\d[\d_]*([\+\-]?[\d_]+)?")]
+	#[regex(r"[\d_]*(\.[\d_]*)?([\+\-]?[\d_]+)?")]
+	Number,
+	#[regex(r#""((\\")|[^"])*""#)]
+	#[regex(r"'((\\')|[^'])*'")]
+	String,
+
+	#[regex(r"\s+", logos::skip)]
 	Whitespace,
 	#[regex("[a-zA-Z]+")]
 	Ident,
 	#[token(";")]
 	Semicolon,
+	#[regex(r"//.*\n?")]
+	Comment,
 
 	#[error]
 	Error,
