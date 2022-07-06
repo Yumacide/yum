@@ -1,6 +1,8 @@
-use logos::Logos;
+use std::ops::Range;
 
-#[derive(Logos, Debug, PartialEq)]
+use logos::{Lexer, Logos, Source, Span};
+
+#[derive(Logos, Debug, PartialEq, Clone)]
 pub enum Token {
 	/* Keywords */
 	#[token("let")]
@@ -104,6 +106,63 @@ pub enum Token {
 	#[regex(r"//.*\n?")]
 	Comment,
 
+	Eof,
+
 	#[error]
 	Error,
+}
+
+/// A thin wrapper around Logos' `Lexer` that allows peeking.
+#[allow(dead_code)]
+pub struct PeekLexer<'src> {
+	pub lexer: Lexer<'src, Token>,
+	peeked: Option<Option<Token>>,
+	prev_span: Option<Span>,
+	prev_slice: Option<&'src <str as Source>::Slice>,
+}
+
+impl<'src> PeekLexer<'src> {
+	pub fn new(source: &'src str) -> Self {
+		Self {
+			lexer: Token::lexer(source),
+			peeked: None,
+			prev_span: None,
+			prev_slice: None,
+		}
+	}
+
+	pub fn peek(&mut self) -> &Option<Token> {
+		if self.peeked.is_none() {
+			self.prev_span = Some(self.lexer.span());
+			self.prev_slice = Some(self.lexer.slice());
+			self.peeked = Some(self.lexer.next());
+		}
+		self.peeked.as_ref().unwrap()
+	}
+
+	pub fn span(&self) -> Range<usize> {
+		if self.peeked.is_none() {
+			return self.lexer.span();
+		}
+		self.prev_span.clone().unwrap()
+	}
+
+	pub fn slice(&self) -> &'src <str as Source>::Slice {
+		if self.peeked.is_none() {
+			return self.lexer.slice();
+		}
+		self.prev_slice.clone().unwrap()
+	}
+}
+
+impl<'src> Iterator for PeekLexer<'src> {
+	type Item = Token;
+
+	fn next(&mut self) -> Option<Token> {
+		if let Some(peeked) = self.peeked.take() {
+			peeked
+		} else {
+			self.lexer.next()
+		}
+	}
 }

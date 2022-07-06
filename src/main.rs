@@ -1,16 +1,13 @@
 use std::{fs, str};
 
-use clap::Parser;
-use logos::Logos;
-
-use crate::ast::lexer::Token;
+use ast::parser::Parser;
+use clap::Parser as ArgParser;
 
 mod ast;
 
-#[derive(Parser, Debug)]
+#[derive(ArgParser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-	// The name of the file to compile
 	#[clap(value_parser)]
 	filename: String,
 }
@@ -20,6 +17,6 @@ fn main() {
 	let src = fs::read(args.filename).unwrap();
 	let src = str::from_utf8(&src).unwrap();
 
-	let lex = Token::lexer(src);
-	lex.for_each(|x| println!("{:?}", x));
+	let mut parser = Parser::new(src);
+	parser.parse_mod().unwrap();
 }
