@@ -101,7 +101,9 @@ impl<'a> Parser<'a> {
 		self.expect(Token::LBrace)?;
 		loop {
 			let span = self.plexer.span();
-			self.expect(Token::Ident)?;
+			if !self.eat(Token::Ident) {
+				break;
+			}
 			let variant = Variant { span };
 			variants.push(variant);
 			if !self.eat(Token::Comma) {
