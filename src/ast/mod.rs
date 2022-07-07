@@ -18,6 +18,25 @@ impl PartialEq for EnumDef {
 #[derive(PartialEq, Debug, Clone)]
 pub struct Variant {
 	pub span: Span,
+	pub data: VariantData,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum VariantData {
+	Struct(Vec<FieldDef>),
+	Tuple(Vec<FieldDef>),
+	Unit,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct FieldDef {
+	pub ident: Ident,
+	pub ty: Type,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Type {
+	// TODO
 }
 
 #[derive(PartialEq, Debug, Clone)]

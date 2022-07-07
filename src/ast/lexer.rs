@@ -88,6 +88,8 @@ pub enum Token {
 	Dot,
 	#[token(",")]
 	Comma,
+	#[token(":")]
+	Colon,
 
 	/* Literals */
 	#[regex(r"\.\d[\d_]*([\+\-]?[\d_]+)?")]
@@ -99,7 +101,7 @@ pub enum Token {
 
 	#[regex(r"\s+", logos::skip)]
 	Whitespace,
-	#[regex("[a-zA-Z]+")]
+	#[regex(r"_*[\w]+[\d_]*")]
 	Ident,
 	#[token(";")]
 	Semicolon,
