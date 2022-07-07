@@ -10,7 +10,6 @@ use crate::ast::Variant;
 pub struct Parser<'a> {
 	pub token: Token,
 	pub plexer: PeekLexer<'a>,
-	index: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -18,7 +17,6 @@ impl<'a> Parser<'a> {
 		let mut parser = Self {
 			token: Token::Eof,
 			plexer: PeekLexer::new(src),
-			index: 0,
 		};
 		parser.bump();
 		parser
@@ -31,7 +29,6 @@ impl<'a> Parser<'a> {
 		} else {
 			self.token = Token::Eof;
 		}
-		self.index += 1;
 	}
 
 	pub fn expect(&mut self, token: Token) -> Result<(), String> {
