@@ -113,7 +113,6 @@ pub enum Token {
 }
 
 /// A thin wrapper around Logos' `Lexer` that allows peeking.
-#[allow(dead_code)]
 pub struct PeekLexer<'src> {
 	pub lexer: Lexer<'src, Token>,
 	peeked: Option<Option<Token>>,
@@ -165,4 +164,15 @@ impl<'src> Iterator for PeekLexer<'src> {
 			self.lexer.next()
 		}
 	}
+}
+
+// Thanks, logos
+#[test]
+fn peek() {
+	let mut plexer = PeekLexer::new("let foo");
+	plexer.next();
+	let before_span = plexer.span();
+	plexer.peek();
+	let after_span = plexer.span();
+	assert_eq!(before_span, after_span);
 }

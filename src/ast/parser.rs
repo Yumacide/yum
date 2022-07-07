@@ -134,14 +134,3 @@ fn parse_enum() {
 		}
 	);
 }
-
-// Thanks, logos
-#[test]
-fn peek() {
-	let mut parser = Parser::new("let foo");
-	parser.plexer.next();
-	let before_span = parser.plexer.span();
-	parser.plexer.peek();
-	let after_span = parser.plexer.span();
-	assert_eq!(before_span, after_span);
-}
