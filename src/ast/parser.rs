@@ -1,14 +1,11 @@
 // TODO: better errors
 
-use std::vec;
-
-use crate::ast::Variant;
-
 use super::{
 	item::{Item, ItemKind},
 	lexer::{PeekLexer, Token},
 	EnumDef, Ident,
 };
+use crate::ast::Variant;
 
 pub struct Parser<'a> {
 	pub token: Token,

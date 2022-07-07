@@ -1,7 +1,6 @@
-use std::{fs, str};
-
 use ast::parser::Parser;
 use clap::Parser as ArgParser;
+use std::{fs, str};
 
 mod ast;
 
