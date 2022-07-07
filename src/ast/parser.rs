@@ -54,7 +54,7 @@ impl<'a> Parser<'a> {
 		panic!("Expected one of {:?}, found {:?}", tokens, self.token);
 	}
 
-	pub fn eat(&mut self, token: Token) -> bool {
+	pub fn consume(&mut self, token: Token) -> bool {
 		let is_present = self.token == token;
 		if is_present {
 			self.bump();
@@ -80,10 +80,10 @@ impl<'a> Parser<'a> {
 	}
 
 	pub fn parse_item_kind(&mut self) -> Result<Option<(Ident, ItemKind)>, String> {
-		if self.eat(Token::Enum) {
+		if self.consume(Token::Enum) {
 			let (ident, enum_def) = self.parse_enum()?;
 			Ok(Some((ident, ItemKind::Enum(enum_def))))
-		} else if self.eat(Token::Struct) {
+		} else if self.consume(Token::Struct) {
 			let (ident, vdata) = self.parse_struct()?;
 			Ok(Some((ident, ItemKind::Struct(vdata))))
 		} else if self.token == Token::Eof {
@@ -103,7 +103,7 @@ impl<'a> Parser<'a> {
 		self.expect(Token::LBrace)?;
 		loop {
 			let span = self.plexer.span();
-			if !self.eat(Token::Ident) {
+			if !self.consume(Token::Ident) {
 				break;
 			}
 			let variant = Variant {
@@ -111,7 +111,7 @@ impl<'a> Parser<'a> {
 				data: VariantData::Unit,
 			};
 			variants.push(variant);
-			if !self.eat(Token::Comma) {
+			if !self.consume(Token::Comma) {
 				break;
 			}
 		}
@@ -121,13 +121,13 @@ impl<'a> Parser<'a> {
 
 	pub fn parse_struct(&mut self) -> Result<(Ident, VariantData), String> {
 		let ident = self.parse_ident()?;
-		let vdata = if self.eat(Token::Semicolon) {
+		let vdata = if self.consume(Token::Semicolon) {
 			VariantData::Unit
-		} else if self.eat(Token::LBrace) {
+		} else if self.consume(Token::LBrace) {
 			let fields = self.parse_fields()?;
 			self.expect(Token::RBrace)?;
 			VariantData::Struct(fields)
-		} else if self.eat(Token::LParen) {
+		} else if self.consume(Token::LParen) {
 			let fields = self.parse_fields()?;
 			self.expect(Token::RParen)?;
 			VariantData::Tuple(fields)
@@ -154,7 +154,7 @@ impl<'a> Parser<'a> {
 			};
 			self.expect(Token::Colon)?;
 			let ty = self.parse_type()?;
-			if !self.eat(Token::Comma) {
+			if !self.consume(Token::Comma) {
 				break;
 			}
 			fields.push(FieldDef { ident, ty });
