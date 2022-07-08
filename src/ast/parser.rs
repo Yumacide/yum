@@ -1,7 +1,7 @@
 use super::{
 	item::{Item, ItemKind},
 	lexer::Token,
-	EnumDef, FieldDef, Ident, VariantData,
+	EnumDef, FieldDef, Ident, Path, PathSegment, PathStyle, VariantData, VisKind, Visibility,
 };
 use crate::ast::{Type, Variant};
 use logos::{Logos, Span};
@@ -58,13 +58,17 @@ impl<'a> Parser<'a> {
 		}
 	}
 
-	pub fn expect_one_of(&mut self, tokens: &[Token]) {
+	pub fn expect_one_of(&mut self, tokens: &[Token]) -> Result<(), String> {
 		for token in tokens {
 			if self.token == *token {
-				return;
+				self.bump();
+				return Ok(());
 			}
 		}
-		panic!("Expected one of {:?}, found {:?}", tokens, self.token);
+		Err(format!(
+			"Expected one of {:?}, found {:?}",
+			tokens, self.token
+		))
 	}
 
 	pub fn consume(&mut self, token: Token) -> bool {
@@ -73,6 +77,24 @@ impl<'a> Parser<'a> {
 			self.bump();
 		}
 		is_present
+	}
+
+	pub fn peek(&mut self, n: usize) -> &Token {
+		let (tok, _) = self
+			.tokens
+			.get(self.cursor + n - 1)
+			.unwrap_or(&(Token::Eof, 0..0));
+		tok
+	}
+
+	pub fn is_ahead(&mut self, n: usize, toks: &[Token]) -> bool {
+		let next_token = self.peek(n);
+		for tok in toks {
+			if next_token == tok {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	pub fn parse_mod(&mut self) -> Result<Vec<Item>, String> {
@@ -158,6 +180,7 @@ impl<'a> Parser<'a> {
 	pub fn parse_fields(&mut self) -> Result<Vec<FieldDef>, String> {
 		let mut fields = vec![];
 		loop {
+			let vis = self.parse_visiblity()?;
 			let ident = if self.token == Token::Ident {
 				let span = self.span.clone();
 				self.bump();
@@ -170,9 +193,67 @@ impl<'a> Parser<'a> {
 			if !self.consume(Token::Comma) {
 				break;
 			}
-			fields.push(FieldDef { ident, ty });
+			fields.push(FieldDef { vis, ident, ty });
 		}
 		Ok(fields)
+	}
+
+	pub fn parse_visiblity(&mut self) -> Result<Visibility, String> {
+		if !self.consume(Token::Pub) {
+			return Ok(Visibility {
+				kind: VisKind::Inherited,
+			});
+		}
+
+		if self.token == Token::LParen {
+			let path = if self.is_ahead(1, &[Token::In]) {
+				self.bump(); // (
+				self.bump(); // in
+				self.parse_path(PathStyle::Mod)?
+			} else if self.is_ahead(1, &[Token::Crate, Token::SelfLower, Token::Super])
+				&& self.is_ahead(2, &[Token::RParen])
+			{
+				self.bump(); // (
+				self.parse_path(PathStyle::Mod)?
+			} else {
+				// A case like Struct(pub (crate::Type))
+				return Ok(Visibility {
+					kind: VisKind::Public,
+				});
+			};
+
+			return Ok(Visibility {
+				kind: VisKind::Restricted { path },
+			});
+		} else {
+			return Ok(Visibility {
+				kind: VisKind::Public,
+			});
+		}
+	}
+
+	pub fn parse_path(&mut self, style: PathStyle) -> Result<Path, String> {
+		let mut segments = vec![];
+		loop {
+			let segment = self.parse_path_segment(&style)?;
+			segments.push(segment);
+			if !self.consume(Token::DoubleColon) {
+				break;
+			}
+		}
+		Ok(Path { segments })
+	}
+
+	pub fn parse_path_segment(&mut self, style: &PathStyle) -> Result<PathSegment, String> {
+		Ok(PathSegment {
+			ident: self.parse_path_segment_ident()?,
+		})
+	}
+
+	pub fn parse_path_segment_ident(&mut self) -> Result<Ident, String> {
+		let span = self.span.clone();
+		self.expect_one_of(&[Token::Ident, Token::Crate, Token::SelfLower, Token::Super])?;
+		Ok(Ident { span })
 	}
 
 	/// TODO
@@ -224,10 +305,56 @@ fn parse_struct() {
 		item,
 		Item {
 			kind: ItemKind::Struct(VariantData::Struct(vec![FieldDef {
+				vis: Visibility {
+					kind: VisKind::Inherited
+				},
 				ident: Ident { span: 13..16 },
 				ty: Type {}
 			}])),
 			ident: Ident { span: 7..10 }
 		}
 	);
+}
+
+#[test]
+fn parse_visibility() {
+	let vises = [
+		Visibility {
+			kind: VisKind::Restricted {
+				path: Path {
+					segments: vec![PathSegment {
+						ident: Ident { span: 4..9 },
+					}],
+				},
+			},
+		},
+		Visibility {
+			kind: VisKind::Public,
+		},
+		Visibility {
+			kind: VisKind::Inherited,
+		},
+		Visibility {
+			kind: VisKind::Restricted {
+				path: Path {
+					segments: vec![
+						PathSegment {
+							ident: Ident { span: 7..12 },
+						},
+						PathSegment {
+							ident: Ident { span: 14..17 },
+						},
+					],
+				},
+			},
+		},
+	];
+	for (i, src) in ["pub(crate)", "pub", "", "pub(in crate::ast)"]
+		.iter()
+		.enumerate()
+	{
+		let tokens = Token::lexer(src).spanned().collect();
+		let mut parser = Parser::new(tokens, src);
+		assert_eq!(parser.parse_visiblity().unwrap(), vises[i])
+	}
 }

@@ -4,15 +4,9 @@ pub mod item;
 pub mod lexer;
 pub mod parser;
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct EnumDef {
 	pub variants: Vec<Variant>,
-}
-
-impl PartialEq for EnumDef {
-	fn eq(&self, other: &Self) -> bool {
-		self.variants == other.variants
-	}
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -30,6 +24,7 @@ pub enum VariantData {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct FieldDef {
+	pub vis: Visibility,
 	pub ident: Ident,
 	pub ty: Type,
 }
@@ -42,4 +37,32 @@ pub struct Type {
 #[derive(PartialEq, Debug, Clone)]
 pub struct Ident {
 	pub span: Span,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Visibility {
+	pub kind: VisKind,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum VisKind {
+	Public,
+	Restricted { path: Path },
+	Inherited,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Path {
+	segments: Vec<PathSegment>,
+}
+
+pub enum PathStyle {
+	Expr,
+	Type,
+	Mod,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct PathSegment {
+	pub ident: Ident,
 }

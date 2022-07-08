@@ -98,6 +98,8 @@ pub enum Token {
 	Comma,
 	#[token(":")]
 	Colon,
+	#[token("::")]
+	DoubleColon,
 
 	/* Literals */
 	#[regex(r"\.\d[\d_]*([\+\-]?[\d_]+)?")]
