@@ -1,6 +1,4 @@
-use std::ops::Range;
-
-use logos::{Lexer, Logos, Source, Span};
+use logos::Logos;
 
 #[derive(Logos, Debug, PartialEq, Clone)]
 pub enum Token {
@@ -31,6 +29,16 @@ pub enum Token {
 	Struct,
 	#[token("enum")]
 	Enum,
+	#[token("pub")]
+	Pub,
+	#[token("crate")]
+	Crate,
+	#[token("self")]
+	SelfLower,
+	#[token("Self")]
+	SelfUpper,
+	#[token("super")]
+	Super,
 
 	/* Binary operators */
 	#[token("+")]
@@ -112,69 +120,4 @@ pub enum Token {
 
 	#[error]
 	Error,
-}
-
-/// A thin wrapper around Logos' `Lexer` that allows peeking.
-pub struct PeekLexer<'src> {
-	pub lexer: Lexer<'src, Token>,
-	peeked: Option<Option<Token>>,
-	prev_span: Option<Span>,
-	prev_slice: Option<&'src <str as Source>::Slice>,
-}
-
-impl<'src> PeekLexer<'src> {
-	pub fn new(source: &'src str) -> Self {
-		Self {
-			lexer: Token::lexer(source),
-			peeked: None,
-			prev_span: None,
-			prev_slice: None,
-		}
-	}
-
-	pub fn peek(&mut self) -> &Option<Token> {
-		if self.peeked.is_none() {
-			self.prev_span = Some(self.lexer.span());
-			self.prev_slice = Some(self.lexer.slice());
-			self.peeked = Some(self.lexer.next());
-		}
-		self.peeked.as_ref().unwrap()
-	}
-
-	pub fn span(&self) -> Range<usize> {
-		if self.peeked.is_none() {
-			return self.lexer.span();
-		}
-		self.prev_span.clone().unwrap()
-	}
-
-	pub fn slice(&self) -> &'src <str as Source>::Slice {
-		if self.peeked.is_none() {
-			return self.lexer.slice();
-		}
-		self.prev_slice.clone().unwrap()
-	}
-}
-
-impl<'src> Iterator for PeekLexer<'src> {
-	type Item = Token;
-
-	fn next(&mut self) -> Option<Token> {
-		if let Some(peeked) = self.peeked.take() {
-			peeked
-		} else {
-			self.lexer.next()
-		}
-	}
-}
-
-// Thanks, logos
-#[test]
-fn peek() {
-	let mut plexer = PeekLexer::new("let foo");
-	plexer.next();
-	let before_span = plexer.span();
-	plexer.peek();
-	let after_span = plexer.span();
-	assert_eq!(before_span, after_span);
 }

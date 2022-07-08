@@ -1,34 +1,47 @@
-// TODO: better errors
-
 use super::{
 	item::{Item, ItemKind},
-	lexer::{PeekLexer, Token},
+	lexer::Token,
 	EnumDef, FieldDef, Ident, VariantData,
 };
 use crate::ast::{Type, Variant};
+use logos::{Logos, Span};
 
 pub struct Parser<'a> {
 	pub token: Token,
-	pub plexer: PeekLexer<'a>,
+	pub span: Span,
+	pub cursor: usize,
+	tokens: Vec<(Token, Span)>,
+	src: &'a str,
 }
 
 impl<'a> Parser<'a> {
-	pub fn new(src: &'a str) -> Self {
+	pub fn new(tokens: Vec<(Token, Span)>, src: &'a str) -> Self {
 		let mut parser = Self {
 			token: Token::Eof,
-			plexer: PeekLexer::new(src),
+			span: 0..0,
+			cursor: 0,
+			tokens,
+			src,
 		};
 		parser.bump();
 		parser
 	}
 
 	pub fn bump(&mut self) {
-		let next_token = self.plexer.next();
-		if let Some(t) = next_token {
-			self.token = t;
+		let next = self.tokens.get(self.cursor);
+		self.cursor += 1;
+		if next.is_some() {
+			let (tok, span) = next.unwrap().clone();
+			self.token = tok;
+			self.span = span;
 		} else {
 			self.token = Token::Eof;
+			self.span = 0..0;
 		}
+	}
+
+	pub fn slice(&self) -> &str {
+		self.src.get(self.span.clone()).unwrap()
 	}
 
 	pub fn expect(&mut self, token: Token) -> Result<(), String> {
@@ -40,7 +53,7 @@ impl<'a> Parser<'a> {
 				"Expected {:?}, found {:?} '{}'",
 				token,
 				self.token,
-				self.plexer.slice()
+				self.slice()
 			))
 		}
 	}
@@ -92,7 +105,7 @@ impl<'a> Parser<'a> {
 			Err(format!(
 				"Expected item, found {:?} '{:?}'",
 				self.token,
-				self.plexer.slice()
+				self.slice()
 			))
 		}
 	}
@@ -102,7 +115,7 @@ impl<'a> Parser<'a> {
 		let ident = self.parse_ident()?;
 		self.expect(Token::LBrace)?;
 		loop {
-			let span = self.plexer.span();
+			let span = self.span.clone();
 			if !self.consume(Token::Ident) {
 				break;
 			}
@@ -135,7 +148,7 @@ impl<'a> Parser<'a> {
 			return Err(format!(
 				"Expected struct definition, found {:?} '{}'",
 				self.token,
-				self.plexer.slice()
+				self.slice()
 			));
 		};
 
@@ -146,7 +159,7 @@ impl<'a> Parser<'a> {
 		let mut fields = vec![];
 		loop {
 			let ident = if self.token == Token::Ident {
-				let span = self.plexer.span();
+				let span = self.span.clone();
 				self.bump();
 				Ident { span }
 			} else {
@@ -169,8 +182,7 @@ impl<'a> Parser<'a> {
 	}
 
 	pub fn parse_ident(&mut self) -> Result<Ident, String> {
-		let span = self.plexer.span();
-		println!("{}", self.plexer.slice());
+		let span = self.span.clone();
 		self.expect(Token::Ident)?;
 		Ok(Ident { span })
 	}
@@ -178,7 +190,9 @@ impl<'a> Parser<'a> {
 
 #[test]
 fn parse_enum() {
-	let mut parser = Parser::new("enum Result { Ok, Err }");
+	let src = "enum Result { Ok, Err }";
+	let tokens = Token::lexer(src).spanned().collect();
+	let mut parser = Parser::new(tokens, src);
 	let item = parser.parse_item().unwrap().unwrap();
 	assert_eq!(
 		item,
@@ -202,7 +216,9 @@ fn parse_enum() {
 
 #[test]
 fn parse_struct() {
-	let mut parser = Parser::new("struct Foo { Bar: i32, Baz: String }");
+	let src = "struct Foo { Bar: i32, Baz: String }";
+	let tokens = Token::lexer(src).spanned().collect();
+	let mut parser = Parser::new(tokens, src);
 	let item = parser.parse_item().unwrap().unwrap();
 	assert_eq!(
 		item,

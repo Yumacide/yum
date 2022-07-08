@@ -1,6 +1,7 @@
-use ast::parser::Parser;
+use ast::{parser::Parser, lexer::Token};
 use clap::Parser as ArgParser;
 use std::{fs, str};
+use logos::Logos;
 
 mod ast;
 
@@ -16,6 +17,7 @@ fn main() {
 	let src = fs::read(args.filename).unwrap();
 	let src = str::from_utf8(&src).unwrap();
 
-	let mut parser = Parser::new(src);
+	let tokens = Token::lexer(src).spanned().collect();
+	let mut parser = Parser::new(tokens, src);
 	parser.parse_mod().unwrap();
 }
