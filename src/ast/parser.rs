@@ -1,7 +1,8 @@
 use super::{
 	item::{Item, ItemKind},
 	lexer::Token,
-	EnumDef, FieldDef, Ident, Path, PathSegment, PathStyle, VariantData, VisKind, Visibility,
+	EnumDef, FieldDef, Ident, Path, PathSegment, PathStyle, UseTree, UseTreeKind, VariantData,
+	VisKind, Visibility,
 };
 use crate::ast::{Type, Variant};
 use logos::{Logos, Span};
@@ -79,6 +80,10 @@ impl<'a> Parser<'a> {
 		is_present
 	}
 
+	pub fn check(&self, tok: Token) -> bool {
+		self.token == tok
+	}
+
 	pub fn peek(&mut self, n: usize) -> &Token {
 		let (tok, _) = self
 			.tokens
@@ -106,9 +111,9 @@ impl<'a> Parser<'a> {
 	}
 
 	pub fn parse_item(&mut self) -> Result<Option<Item>, String> {
-		// TODO: Parse visibility
+		let vis = self.parse_visiblity()?;
 		if let Some((ident, kind)) = self.parse_item_kind()? {
-			Ok(Some(Item { ident, kind }))
+			Ok(Some(Item { ident, kind, vis }))
 		} else {
 			Ok(None)
 		}
@@ -116,23 +121,23 @@ impl<'a> Parser<'a> {
 
 	pub fn parse_item_kind(&mut self) -> Result<Option<(Ident, ItemKind)>, String> {
 		if self.consume(Token::Enum) {
-			let (ident, enum_def) = self.parse_enum()?;
-			Ok(Some((ident, ItemKind::Enum(enum_def))))
+			Ok(Some(self.parse_enum()?))
 		} else if self.consume(Token::Struct) {
-			let (ident, vdata) = self.parse_struct()?;
-			Ok(Some((ident, ItemKind::Struct(vdata))))
+			Ok(Some(self.parse_struct()?))
+		} else if self.consume(Token::Use) {
+			Ok(Some(self.parse_use()?))
 		} else if self.token == Token::Eof {
 			Ok(None)
 		} else {
 			Err(format!(
-				"Expected item, found {:?} '{:?}'",
+				"Expected item, found {:?} '{}'",
 				self.token,
 				self.slice()
 			))
 		}
 	}
 
-	pub fn parse_enum(&mut self) -> Result<(Ident, EnumDef), String> {
+	pub fn parse_enum(&mut self) -> Result<(Ident, ItemKind), String> {
 		let mut variants = vec![];
 		let ident = self.parse_ident()?;
 		self.expect(Token::LBrace)?;
@@ -151,10 +156,10 @@ impl<'a> Parser<'a> {
 			}
 		}
 		self.expect(Token::RBrace)?;
-		Ok((ident, EnumDef { variants }))
+		Ok((ident, ItemKind::Enum(EnumDef { variants })))
 	}
 
-	pub fn parse_struct(&mut self) -> Result<(Ident, VariantData), String> {
+	pub fn parse_struct(&mut self) -> Result<(Ident, ItemKind), String> {
 		let ident = self.parse_ident()?;
 		let vdata = if self.consume(Token::Semicolon) {
 			VariantData::Unit
@@ -174,7 +179,7 @@ impl<'a> Parser<'a> {
 			));
 		};
 
-		Ok((ident, vdata))
+		Ok((ident, ItemKind::Struct(vdata)))
 	}
 
 	pub fn parse_fields(&mut self) -> Result<Vec<FieldDef>, String> {
@@ -196,6 +201,76 @@ impl<'a> Parser<'a> {
 			fields.push(FieldDef { vis, ident, ty });
 		}
 		Ok(fields)
+	}
+
+	pub fn parse_use(&mut self) -> Result<(Ident, ItemKind), String> {
+		let tree = self.parse_use_tree()?;
+		if !self.consume(Token::Semicolon) {
+			return Err((match tree.kind {
+				UseTreeKind::Glob => "the wildcard token must be last on the path",
+				UseTreeKind::Nested(..) => "glob-like brace syntax must be last on the path",
+				_ => "",
+			})
+			.to_string());
+		};
+		Ok((Ident::empty(), ItemKind::Use(tree)))
+	}
+
+	pub fn parse_use_tree(&mut self) -> Result<UseTree, String> {
+		let mut prefix = Path {
+			segments: Vec::new(),
+		};
+		let kind = if self.check(Token::LBrace) || self.check(Token::Star) {
+			// `use *;` or `use ::*;` or `use {...};` or `use ::{...};`
+			if self.consume(Token::DoubleColon) {
+				prefix.segments.push(PathSegment {
+					ident: Ident {
+						span: self.span.clone(),
+					},
+				});
+			}
+
+			self.parse_use_tree_glob_or_nested()?
+		} else {
+			// `use path::*;` or `use path::{...};` or `use path;` or `use path as bar;`
+			prefix = self.parse_path(PathStyle::Mod)?;
+
+			if self.consume(Token::DoubleColon) {
+				self.parse_use_tree_glob_or_nested()?
+			} else {
+				UseTreeKind::Simple(self.parse_rename()?)
+			}
+		};
+		Ok(UseTree { prefix, kind })
+	}
+
+	pub fn parse_use_tree_glob_or_nested(&mut self) -> Result<UseTreeKind, String> {
+		Ok(if self.consume(Token::Star) {
+			UseTreeKind::Glob
+		} else {
+			UseTreeKind::Nested(self.parse_use_tree_list()?)
+		})
+	}
+
+	pub fn parse_use_tree_list(&mut self) -> Result<Vec<UseTree>, String> {
+		let mut list = vec![];
+		self.expect(Token::LBrace)?;
+		loop {
+			list.push(self.parse_use_tree()?);
+			if !self.consume(Token::Comma) {
+				break;
+			}
+		}
+		self.expect(Token::RBrace)?;
+		Ok(list)
+	}
+
+	pub fn parse_rename(&mut self) -> Result<Option<Ident>, String> {
+		if self.consume(Token::As) {
+			Ok(Some(self.parse_ident()?))
+		} else {
+			Ok(None)
+		}
 	}
 
 	pub fn parse_visiblity(&mut self) -> Result<Visibility, String> {
@@ -237,7 +312,8 @@ impl<'a> Parser<'a> {
 		loop {
 			let segment = self.parse_path_segment(&style)?;
 			segments.push(segment);
-			if !self.consume(Token::DoubleColon) {
+			if self.is_ahead(1, &[Token::LBrace, Token::Star]) || !self.consume(Token::DoubleColon)
+			{
 				break;
 			}
 		}
@@ -288,9 +364,12 @@ fn parse_enum() {
 						span: 18..21,
 						data: VariantData::Unit
 					}
-				]
+				],
 			}),
-			ident: Ident { span: 5..11 }
+			ident: Ident { span: 5..11 },
+			vis: Visibility {
+				kind: VisKind::Inherited
+			}
 		}
 	);
 }
@@ -311,7 +390,10 @@ fn parse_struct() {
 				ident: Ident { span: 13..16 },
 				ty: Type {}
 			}])),
-			ident: Ident { span: 7..10 }
+			ident: Ident { span: 7..10 },
+			vis: Visibility {
+				kind: VisKind::Inherited
+			}
 		}
 	);
 }
@@ -356,5 +438,102 @@ fn parse_visibility() {
 		let tokens = Token::lexer(src).spanned().collect();
 		let mut parser = Parser::new(tokens, src);
 		assert_eq!(parser.parse_visiblity().unwrap(), vises[i])
+	}
+}
+
+#[test]
+fn parse_use_item() {
+	let items = [
+		Item {
+			kind: ItemKind::Use(UseTree {
+				prefix: Path {
+					segments: vec![PathSegment {
+						ident: Ident { span: 8..11 },
+					}],
+				},
+				kind: UseTreeKind::Simple(Some(Ident { span: 15..16 })),
+			}),
+			ident: Ident::empty(),
+			vis: Visibility {
+				kind: VisKind::Public,
+			},
+		},
+		Item {
+			kind: ItemKind::Use(UseTree {
+				kind: UseTreeKind::Simple(None),
+				prefix: Path {
+					segments: vec![
+						PathSegment {
+							ident: Ident { span: 4..9 },
+						},
+						PathSegment {
+							ident: Ident { span: 11..14 },
+						},
+					],
+				},
+			}),
+			ident: Ident::empty(),
+			vis: Visibility {
+				kind: VisKind::Inherited,
+			},
+		},
+		Item {
+			kind: ItemKind::Use(UseTree {
+				kind: UseTreeKind::Nested(vec![
+					UseTree {
+						kind: UseTreeKind::Simple(None),
+						prefix: Path {
+							segments: vec![PathSegment {
+								ident: Ident { span: 10..14 },
+							}],
+						},
+					},
+					UseTree {
+						kind: UseTreeKind::Simple(None),
+						prefix: Path {
+							segments: vec![PathSegment {
+								ident: Ident { span: 16..22 },
+							}],
+						},
+					},
+				]),
+				prefix: Path {
+					segments: vec![PathSegment {
+						ident: Ident { span: 4..7 },
+					}],
+				},
+			}),
+			ident: Ident::empty(),
+			vis: Visibility {
+				kind: VisKind::Inherited,
+			},
+		},
+		Item {
+			kind: ItemKind::Use(UseTree {
+				kind: UseTreeKind::Glob,
+				prefix: Path {
+					segments: vec![PathSegment {
+						ident: Ident { span: 4..7 },
+					}],
+				},
+			}),
+			ident: Ident::empty(),
+			vis: Visibility {
+				kind: VisKind::Inherited,
+			},
+		},
+	];
+	for (i, src) in [
+		"pub use ast as a;",
+		"use crate::ast;",
+		"use ast::{item, parser};",
+		"use ast::*;",
+	]
+	.iter()
+	.enumerate()
+	{
+		let tokens = Token::lexer(src).spanned().collect();
+		let mut parser = Parser::new(tokens, src);
+		assert_eq!(parser.parse_item().unwrap().unwrap(), items[i])
 	}
 }

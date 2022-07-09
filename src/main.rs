@@ -1,5 +1,5 @@
 use ast::{lexer::Token, parser::Parser};
-use clap::{arg, command, Command};
+use clap::{arg, command};
 use logos::Logos;
 use std::{fs, path::Path, str};
 

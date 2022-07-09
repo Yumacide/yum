@@ -39,6 +39,10 @@ pub enum Token {
 	SelfUpper,
 	#[token("super")]
 	Super,
+	#[token("use")]
+	Use,
+	#[token("as")]
+	As,
 
 	/* Binary operators */
 	#[token("+")]

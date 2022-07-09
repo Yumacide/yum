@@ -39,6 +39,12 @@ pub struct Ident {
 	pub span: Span,
 }
 
+impl Ident {
+	pub fn empty() -> Self {
+		Ident { span: 0..0 }
+	}
+}
+
 #[derive(PartialEq, Debug, Clone)]
 pub struct Visibility {
 	pub kind: VisKind,
@@ -65,4 +71,17 @@ pub enum PathStyle {
 #[derive(PartialEq, Debug, Clone)]
 pub struct PathSegment {
 	pub ident: Ident,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct UseTree {
+	pub kind: UseTreeKind,
+	pub prefix: Path,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum UseTreeKind {
+	Simple(Option<Ident>),
+	Nested(Vec<UseTree>),
+	Glob,
 }
