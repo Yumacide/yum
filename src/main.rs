@@ -1,20 +1,27 @@
-use ast::{parser::Parser, lexer::Token};
-use clap::Parser as ArgParser;
-use std::{fs, str};
+use ast::{lexer::Token, parser::Parser};
+use clap::{arg, Command};
 use logos::Logos;
+use std::{fs, path::Path, str};
 
 mod ast;
 
-#[derive(ArgParser, Debug)]
-#[clap(author, version, about, long_about = None)]
-struct Args {
-	#[clap(value_parser)]
-	filename: String,
-}
-
 fn main() {
-	let args = Args::parse();
-	let src = fs::read(args.filename).unwrap();
+	let matches = Command::new("Yumc")
+		.version("0.1.0")
+		.author("Yumacide <yumanomics@gmail.com>")
+		.about("The compiler for the Yum language")
+		.arg(arg!([filename] "File to compile"))
+		.get_matches();
+	let path_str = matches
+		.get_one::<String>("filename")
+		.expect("filename is required");
+
+	let path = Path::new(path_str);
+	if !path.is_file() {
+		panic!("invalid path {}", path_str)
+	}
+
+	let src = fs::read(path).unwrap();
 	let src = str::from_utf8(&src).unwrap();
 
 	let tokens = Token::lexer(src).spanned().collect();
