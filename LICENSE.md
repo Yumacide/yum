@@ -20,4 +20,4 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Parts of this project are adapted from rustc: https://github.com/rust-lang/rust
+Parts of this project are adapted from rustc under the MIT license: https://github.com/rust-lang/rust
