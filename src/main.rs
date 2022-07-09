@@ -1,15 +1,12 @@
 use ast::{lexer::Token, parser::Parser};
-use clap::{arg, Command};
+use clap::{arg, command, Command};
 use logos::Logos;
 use std::{fs, path::Path, str};
 
 mod ast;
 
 fn main() {
-	let matches = Command::new("Yumc")
-		.version("0.1.0")
-		.author("Yumacide <yumanomics@gmail.com>")
-		.about("The compiler for the Yum language")
+	let matches = command!()
 		.arg(arg!([filename] "File to compile"))
 		.get_matches();
 	let path_str = matches
