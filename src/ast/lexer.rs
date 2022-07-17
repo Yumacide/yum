@@ -43,6 +43,8 @@ pub enum Token {
 	Use,
 	#[token("as")]
 	As,
+	#[token("test")]
+	Test,
 
 	/* Binary operators */
 	#[token("+")]

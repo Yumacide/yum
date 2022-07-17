@@ -1,4 +1,6 @@
-use super::{EnumDef, Ident, UseTree, VariantData, Visibility};
+use logos::Span;
+
+use super::{Block, EnumDef, Ident, UseTree, VariantData, Visibility};
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Item {
@@ -12,4 +14,5 @@ pub enum ItemKind {
 	Enum(EnumDef),
 	Struct(VariantData), // Struct data is the same as enum variant data
 	Use(UseTree),
+	Test(Span, Block),
 }

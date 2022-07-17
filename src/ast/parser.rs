@@ -1,8 +1,8 @@
 use super::{
 	item::{Item, ItemKind},
 	lexer::Token,
-	EnumDef, FieldDef, Ident, Path, PathSegment, PathStyle, UseTree, UseTreeKind, VariantData,
-	VisKind, Visibility,
+	Block, EnumDef, FieldDef, Ident, Path, PathSegment, PathStyle, Stmt, UseTree, UseTreeKind,
+	VariantData, VisKind, Visibility,
 };
 use crate::ast::{Type, Variant};
 use logos::{Logos, Span};
@@ -126,6 +126,8 @@ impl<'a> Parser<'a> {
 			Ok(Some(self.parse_struct()?))
 		} else if self.consume(Token::Use) {
 			Ok(Some(self.parse_use()?))
+		} else if self.consume(Token::Test) {
+			Ok(Some(self.parse_test()?))
 		} else if self.token == Token::Eof {
 			Ok(None)
 		} else {
@@ -263,6 +265,27 @@ impl<'a> Parser<'a> {
 		}
 		self.expect(Token::RBrace)?;
 		Ok(list)
+	}
+
+	pub fn parse_test(&mut self) -> Result<(Ident, ItemKind), String> {
+		let span = self.span.clone();
+		self.expect(Token::String)?;
+		let block = self.parse_block()?;
+		Ok((Ident::empty(), ItemKind::Test(span, block)))
+	}
+
+	pub fn parse_block(&mut self) -> Result<Block, String> {
+		// TODO
+		let mut stmts = vec![];
+		while let Some(stmt) = self.parse_stmt()? {
+			stmts.push(stmt);
+		}
+		Ok(Block { stmts })
+	}
+
+	pub fn parse_stmt(&mut self) -> Result<Option<Stmt>, String> {
+		// TODO
+		Ok(None)
 	}
 
 	pub fn parse_rename(&mut self) -> Result<Option<Ident>, String> {
@@ -536,4 +559,14 @@ fn parse_use_item() {
 		let mut parser = Parser::new(tokens, src);
 		assert_eq!(parser.parse_item().unwrap().unwrap(), items[i])
 	}
+}
+
+#[test]
+fn parse_test() {
+	let src = "test \"Ensure that things work\" {}";
+	let tokens = Token::lexer(src).spanned().collect();
+	let mut parser = Parser::new(tokens, src);
+	let test = parser.parse_item_kind().unwrap().unwrap().1;
+
+	assert_eq!(test, ItemKind::Test(5..30, Block { stmts: vec![] }));
 }

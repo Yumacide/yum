@@ -85,3 +85,11 @@ pub enum UseTreeKind {
 	Nested(Vec<UseTree>),
 	Glob,
 }
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Block {
+	stmts: Vec<Stmt>,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Stmt {}
