@@ -1,3 +1,6 @@
+// Parts of the AST are adapted from rustc under the MIT license:
+// https://github.com/rust-lang/rust
+
 use logos::Span;
 
 pub mod item;
