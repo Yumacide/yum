@@ -197,10 +197,11 @@ impl<'a> Parser<'a> {
 			};
 			self.expect(Token::Colon)?;
 			let ty = self.parse_type()?;
+
+			fields.push(FieldDef { vis, ident, ty });
 			if !self.consume(Token::Comma) {
 				break;
 			}
-			fields.push(FieldDef { vis, ident, ty });
 		}
 		Ok(fields)
 	}
@@ -399,25 +400,40 @@ fn parse_enum() {
 
 #[test]
 fn parse_struct() {
-	let src = "struct Foo { Bar: i32, Baz: String }";
+	let src = "struct Foo { bar: number, baz: str }";
 	let tokens = Token::lexer(src).spanned().collect();
 	let mut parser = Parser::new(tokens, src);
-	let item = parser.parse_item().unwrap().unwrap();
+	let kind = parser.parse_item_kind().unwrap().unwrap();
 	assert_eq!(
-		item,
-		Item {
-			kind: ItemKind::Struct(VariantData::Struct(vec![FieldDef {
+		kind.1,
+		ItemKind::Struct(VariantData::Struct(vec![
+			FieldDef {
 				vis: Visibility {
 					kind: VisKind::Inherited
 				},
 				ident: Ident { span: 13..16 },
-				ty: Type {}
-			}])),
-			ident: Ident { span: 7..10 },
-			vis: Visibility {
-				kind: VisKind::Inherited
+				ty: Type {
+					path: Path {
+						segments: vec![PathSegment {
+							ident: Ident { span: 18..24 }
+						}]
+					}
+				}
+			},
+			FieldDef {
+				vis: Visibility {
+					kind: VisKind::Inherited
+				},
+				ident: Ident { span: 26..29 },
+				ty: Type {
+					path: Path {
+						segments: vec![PathSegment {
+							ident: Ident { span: 31..34 }
+						}]
+					}
+				}
 			}
-		}
+		]))
 	);
 }
 
