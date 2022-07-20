@@ -126,7 +126,7 @@ impl<'a> Parser<'a> {
 	}
 
 	pub fn parse_item(&mut self) -> Result<Option<Item>, String> {
-		let vis = self.parse_visiblity()?;
+		let vis = self.parse_visibility()?;
 		if let Some((ident, kind)) = self.parse_item_kind()? {
 			Ok(Some(Item { ident, kind, vis }))
 		} else {
@@ -321,7 +321,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 
-	pub fn parse_visiblity(&mut self) -> Result<Visibility, String> {
+	pub fn parse_visibility(&mut self) -> Result<Visibility, String> {
 		if !self.consume(Token::Pub) {
 			return Ok(Visibility {
 				kind: VisKind::Inherited,
@@ -500,7 +500,7 @@ fn parse_visibility() {
 	{
 		let tokens = Token::lexer(src).spanned().collect();
 		let mut parser = Parser::new(tokens, src);
-		assert_eq!(parser.parse_visiblity().unwrap(), vises[i])
+		assert_eq!(parser.parse_visibility().unwrap(), vises[i])
 	}
 }
 
