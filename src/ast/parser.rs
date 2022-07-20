@@ -44,6 +44,21 @@ impl<'a> Parser<'a> {
 	pub fn slice(&self) -> &str {
 		self.src.get(self.span.clone()).unwrap()
 	}
+	pub fn line_column(&self) -> String {
+		format!(
+			"line {} column {}",
+			self.src.matches("\n").count(),
+			self.span.start
+				- self
+					.src
+					.get(0..self.span.end)
+					.unwrap()
+					.match_indices("\n")
+					.last()
+					.unwrap()
+					.0
+		)
+	}
 
 	pub fn expect(&mut self, token: Token) -> Result<(), String> {
 		if self.token == token {
@@ -132,9 +147,10 @@ impl<'a> Parser<'a> {
 			Ok(None)
 		} else {
 			Err(format!(
-				"Expected item, found {:?} '{}'",
+				"Expected item, found {:?} '{}' at {}",
 				self.token,
-				self.slice()
+				self.slice(),
+				self.line_column()
 			))
 		}
 	}
