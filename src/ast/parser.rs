@@ -164,16 +164,29 @@ impl<'a> Parser<'a> {
 			if !self.consume(Token::Ident) {
 				break;
 			}
-			let variant = Variant {
-				span,
-				data: VariantData::Unit,
+
+			let vdata = if self.consume(Token::Comma) || self.check(Token::RBrace) {
+				VariantData::Unit
+			} else if self.consume(Token::LBrace) {
+				let fields = self.parse_fields()?;
+				self.expect(Token::RBrace)?;
+				VariantData::Struct(fields)
+			} else if self.consume(Token::LParen) {
+				let fields = self.parse_fields_tuple()?;
+				VariantData::Tuple(fields)
+			} else {
+				return Err(format!(
+					"Expected enum variant, found {:?} '{}' at {}",
+					self.token,
+					self.slice(),
+					self.line_column()
+				));
 			};
-			variants.push(variant);
-			if !self.consume(Token::Comma) {
+			variants.push(Variant { span, vdata });
+			if self.consume(Token::RBrace) {
 				break;
 			}
 		}
-		self.expect(Token::RBrace)?;
 		Ok((ident, ItemKind::Enum(EnumDef { variants })))
 	}
 
@@ -183,11 +196,9 @@ impl<'a> Parser<'a> {
 			VariantData::Unit
 		} else if self.consume(Token::LBrace) {
 			let fields = self.parse_fields()?;
-			self.expect(Token::RBrace)?;
 			VariantData::Struct(fields)
 		} else if self.consume(Token::LParen) {
-			let fields = self.parse_fields()?;
-			self.expect(Token::RParen)?;
+			let fields = self.parse_fields_tuple()?;
 			VariantData::Tuple(fields)
 		} else {
 			return Err(format!(
@@ -203,14 +214,11 @@ impl<'a> Parser<'a> {
 	pub fn parse_fields(&mut self) -> Result<Vec<FieldDef>, String> {
 		let mut fields = vec![];
 		loop {
-			let vis = self.parse_visiblity()?;
-			let ident = if self.token == Token::Ident {
-				let span = self.span.clone();
-				self.bump();
-				Ident { span }
-			} else {
+			if self.consume(Token::RBrace) {
 				break;
-			};
+			}
+			let vis = self.parse_visibility()?;
+			let ident = self.parse_ident()?;
 			self.expect(Token::Colon)?;
 			let ty = self.parse_type()?;
 
@@ -398,11 +406,11 @@ fn parse_enum() {
 				variants: vec![
 					Variant {
 						span: 14..16,
-						data: VariantData::Unit
+						vdata: VariantData::Unit
 					},
 					Variant {
 						span: 18..21,
-						data: VariantData::Unit
+						vdata: VariantData::Unit
 					}
 				],
 			}),
