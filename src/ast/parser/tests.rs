@@ -5,8 +5,7 @@ use crate::ast::{
 	Block, EnumDef, FieldDef, Fn, Ident, Impl, Path, PathSegment, Type, TypeAlias, TypeKind,
 	UseTree, UseTreeKind, Variant, VariantData, VisKind, Visibility,
 };
-#[allow(unused_imports)] // logos::Logos implements Token::lexer
-use logos::{Logos, Span};
+use logos::Logos;
 
 #[test]
 fn parse_enum() {

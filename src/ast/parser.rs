@@ -4,8 +4,7 @@ use super::{
 	Arg, Block, EnumDef, FieldDef, Fn, Ident, Impl, Path, PathSegment, PathStyle, Stmt, Type,
 	TypeAlias, TypeKind, UseTree, UseTreeKind, Variant, VariantData, VisKind, Visibility,
 };
-#[allow(unused_imports)] // logos::Logos implements Token::lexer
-use logos::{Logos, Span};
+use logos::Span;
 
 #[cfg(test)]
 mod tests;
