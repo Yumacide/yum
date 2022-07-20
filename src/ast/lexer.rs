@@ -45,6 +45,10 @@ pub enum Token {
 	As,
 	#[token("test")]
 	Test,
+	#[token("impl")]
+	Impl,
+	#[token("type")]
+	Type,
 
 	/* Binary operators */
 	#[token("+")]
@@ -106,6 +110,8 @@ pub enum Token {
 	Colon,
 	#[token("::")]
 	DoubleColon,
+	#[token("->")]
+	Arrow,
 
 	/* Literals */
 	#[regex(r"\.\d[\d_]*([\+\-]?[\d_]+)?")]

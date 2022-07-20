@@ -1,10 +1,10 @@
 use super::{
-	item::{Item, ItemKind},
+	item::{AssocItemKind, Item, ItemKind},
 	lexer::Token,
-	Block, EnumDef, FieldDef, Ident, Path, PathSegment, PathStyle, Stmt, UseTree, UseTreeKind,
-	VariantData, VisKind, Visibility,
+	Arg, Block, EnumDef, FieldDef, Fn, Ident, Impl, Path, PathSegment, PathStyle, Stmt, Type,
+	TypeAlias, TypeKind, UseTree, UseTreeKind, Variant, VariantData, VisKind, Visibility,
 };
-use crate::ast::{Type, Variant};
+#[allow(unused_imports)] // logos::Logos implements Token::lexer
 use logos::{Logos, Span};
 
 pub struct Parser<'a> {
@@ -44,10 +44,15 @@ impl<'a> Parser<'a> {
 	pub fn slice(&self) -> &str {
 		self.src.get(self.span.clone()).unwrap()
 	}
+
 	pub fn line_column(&self) -> String {
 		format!(
 			"line {} column {}",
-			self.src.matches("\n").count(),
+			self.src
+				.get(0..self.span.end)
+				.unwrap()
+				.matches("\n")
+				.count() + 1,
 			self.span.start
 				- self
 					.src
@@ -55,7 +60,7 @@ impl<'a> Parser<'a> {
 					.unwrap()
 					.match_indices("\n")
 					.last()
-					.unwrap()
+					.unwrap_or((1, ""))
 					.0
 		)
 	}
@@ -143,6 +148,8 @@ impl<'a> Parser<'a> {
 			Ok(Some(self.parse_use()?))
 		} else if self.consume(Token::Test) {
 			Ok(Some(self.parse_test()?))
+		} else if self.consume(Token::Impl) {
+			Ok(Some(self.parse_impl()?))
 		} else if self.token == Token::Eof {
 			Ok(None)
 		} else {
@@ -293,6 +300,28 @@ impl<'a> Parser<'a> {
 		Ok(list)
 	}
 
+	pub fn parse_fields_tuple(&mut self) -> Result<Vec<FieldDef>, String> {
+		self.expect(Token::LParen)?;
+		let mut fields = vec![];
+		loop {
+			if self.consume(Token::RParen) {
+				break;
+			}
+			let vis = self.parse_visibility()?;
+			let ty = self.parse_type()?;
+			fields.push(FieldDef {
+				vis,
+				ident: Ident::empty(),
+				ty,
+			});
+			if !self.consume(Token::Comma) {
+				break;
+			}
+		}
+
+		Ok(fields)
+	}
+
 	pub fn parse_test(&mut self) -> Result<(Ident, ItemKind), String> {
 		let span = self.span.clone();
 		self.expect(Token::String)?;
@@ -300,17 +329,137 @@ impl<'a> Parser<'a> {
 		Ok((Ident::empty(), ItemKind::Test(span, block)))
 	}
 
+	pub fn parse_impl(&mut self) -> Result<(Ident, ItemKind), String> {
+		let ty = self.parse_type()?;
+		let trait_path = if self.consume(Token::For) {
+			Some(self.parse_path(PathStyle::Type)?)
+		} else {
+			None
+		};
+		let mut items = vec![];
+
+		self.expect(Token::LBrace)?;
+		while let Some(item) = self.parse_assoc_item(true)? {
+			items.push(item);
+		}
+		self.expect(Token::RBrace)?;
+		Ok((
+			Ident::empty(),
+			ItemKind::Impl(Impl {
+				trait_path,
+				ty,
+				items,
+			}),
+		))
+	}
+
+	pub fn parse_assoc_item(
+		&mut self,
+		req_body: bool,
+	) -> Result<Option<Item<AssocItemKind>>, String> {
+		let vis = self.parse_visibility()?;
+		let info = if self.consume(Token::Type) {
+			Some(self.parse_type_alias(req_body)?)
+		} else if self.consume(Token::Fn) {
+			Some(self.parse_assoc_fn(req_body)?)
+		} else if self.check(Token::RBrace) {
+			return Ok(None);
+		} else {
+			return Err(format!(
+				"Expected associated item, found {:?} '{}'",
+				self.token,
+				self.slice(),
+			));
+		};
+
+		match info {
+			Some((ident, kind)) => Ok(Some(Item { kind, ident, vis })),
+			None => Ok(None),
+		}
+	}
+
+	pub fn parse_type_alias(&mut self, right_req: bool) -> Result<(Ident, AssocItemKind), String> {
+		let left_ty = self.parse_type()?;
+		let right_ty = if right_req {
+			self.expect(Token::Eq)?;
+			Some(self.parse_type()?)
+		} else {
+			None
+		};
+		self.expect(Token::Semicolon)?;
+
+		Ok((
+			Ident::empty(),
+			AssocItemKind::TypeAlias(TypeAlias { left_ty, right_ty }),
+		))
+	}
+
+	/// TODO
+	pub fn parse_assoc_fn(&mut self, req_body: bool) -> Result<(Ident, AssocItemKind), String> {
+		let ident = self.parse_ident()?;
+		let args = self.parse_args()?;
+		let ret_ty = if self.consume(Token::Arrow) {
+			self.parse_type()?
+		} else {
+			Type {
+				kind: TypeKind::Unit,
+			}
+		};
+		let body = if req_body {
+			Some(self.parse_block()?)
+		} else {
+			None
+		};
+
+		Ok((ident, AssocItemKind::Fn(Fn { args, ret_ty, body })))
+	}
+
+	/// TODO
+	pub fn parse_args(&mut self) -> Result<Vec<Arg>, String> {
+		let mut args = vec![];
+		self.expect(Token::LParen)?;
+		loop {
+			let ident = Ident {
+				span: self.span.clone(),
+			};
+			let ty = if self.consume(Token::SelfLower) {
+				Type {
+					kind: TypeKind::ImplicitSelf,
+				}
+			} else if self.consume(Token::Ident) {
+				self.expect(Token::Colon)?;
+				self.parse_type()?
+			} else if self.consume(Token::RParen) {
+				break;
+			} else {
+				return Err(format!(
+					"Expected function argument, found {:?} '{:?}'",
+					self.token,
+					self.slice()
+				));
+			};
+
+			args.push(Arg { ident, ty });
+			if !self.consume(Token::Comma) {
+				self.expect(Token::RParen)?;
+				break;
+			}
+		}
+		Ok(args)
+	}
+
 	pub fn parse_block(&mut self) -> Result<Block, String> {
-		// TODO
+		self.expect(Token::LBrace)?;
 		let mut stmts = vec![];
 		while let Some(stmt) = self.parse_stmt()? {
 			stmts.push(stmt);
 		}
+		self.expect(Token::RBrace)?;
 		Ok(Block { stmts })
 	}
 
+	/// TODO
 	pub fn parse_stmt(&mut self) -> Result<Option<Stmt>, String> {
-		// TODO
 		Ok(None)
 	}
 
@@ -369,6 +518,7 @@ impl<'a> Parser<'a> {
 		Ok(Path { segments })
 	}
 
+	// TODO: Parse expr and type paths
 	pub fn parse_path_segment(&mut self, style: &PathStyle) -> Result<PathSegment, String> {
 		Ok(PathSegment {
 			ident: self.parse_path_segment_ident()?,
@@ -383,8 +533,18 @@ impl<'a> Parser<'a> {
 
 	/// TODO
 	pub fn parse_type(&mut self) -> Result<Type, String> {
-		self.expect(Token::Ident)?;
-		Ok(Type {})
+		let kind = if self.check(Token::LParen) && self.is_ahead(1, &[Token::RParen]) {
+			TypeKind::Unit
+		} else if self.check(Token::Ident) {
+			TypeKind::Path(self.parse_path(PathStyle::Type)?)
+		} else {
+			return Err(format!(
+				"Expected type, found {:?} '{:?}'",
+				self.token,
+				self.slice()
+			));
+		};
+		Ok(Type { kind })
 	}
 
 	pub fn parse_ident(&mut self) -> Result<Ident, String> {
@@ -438,11 +598,11 @@ fn parse_struct() {
 				},
 				ident: Ident { span: 13..16 },
 				ty: Type {
-					path: Path {
+					kind: TypeKind::Path(Path {
 						segments: vec![PathSegment {
 							ident: Ident { span: 18..24 }
 						}]
-					}
+					})
 				}
 			},
 			FieldDef {
@@ -451,11 +611,11 @@ fn parse_struct() {
 				},
 				ident: Ident { span: 26..29 },
 				ty: Type {
-					path: Path {
+					kind: TypeKind::Path(Path {
 						segments: vec![PathSegment {
 							ident: Ident { span: 31..34 }
 						}]
-					}
+					})
 				}
 			}
 		]))
@@ -610,4 +770,66 @@ fn parse_test() {
 	let test = parser.parse_item_kind().unwrap().unwrap().1;
 
 	assert_eq!(test, ItemKind::Test(5..30, Block { stmts: vec![] }));
+}
+
+#[test]
+fn parse_impl() {
+	let src = "impl Foo for Bar { type A = B; fn baz() {} }";
+	let tokens = Token::lexer(src).spanned().collect();
+	let mut parser = Parser::new(tokens, src);
+	let kind = parser.parse_item_kind().unwrap().unwrap().1;
+	assert_eq!(
+		kind,
+		ItemKind::Impl(Impl {
+			trait_path: Some(Path {
+				segments: vec![PathSegment {
+					ident: Ident { span: 13..16 }
+				}]
+			}),
+			ty: Type {
+				kind: TypeKind::Path(Path {
+					segments: vec![PathSegment {
+						ident: Ident { span: 5..8 }
+					}]
+				})
+			},
+			items: vec![
+				Item {
+					kind: AssocItemKind::TypeAlias(TypeAlias {
+						left_ty: Type {
+							kind: TypeKind::Path(Path {
+								segments: vec![PathSegment {
+									ident: Ident { span: 24..25 }
+								}]
+							})
+						},
+						right_ty: Some(Type {
+							kind: TypeKind::Path(Path {
+								segments: vec![PathSegment {
+									ident: Ident { span: 28..29 }
+								}]
+							})
+						})
+					}),
+					ident: Ident::empty(),
+					vis: Visibility {
+						kind: VisKind::Inherited
+					}
+				},
+				Item {
+					kind: AssocItemKind::Fn(Fn {
+						args: vec![],
+						ret_ty: Type {
+							kind: TypeKind::Unit
+						},
+						body: Some(Block { stmts: vec![] })
+					}),
+					ident: Ident { span: 34..37 },
+					vis: Visibility {
+						kind: VisKind::Inherited
+					}
+				},
+			]
+		})
+	)
 }

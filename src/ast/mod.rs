@@ -1,6 +1,7 @@
 // Parts of the AST are adapted from rustc under the MIT license:
 // https://github.com/rust-lang/rust
 
+use self::item::{AssocItemKind, Item};
 use logos::Span;
 
 pub mod item;
@@ -15,7 +16,7 @@ pub struct EnumDef {
 #[derive(PartialEq, Debug, Clone)]
 pub struct Variant {
 	pub span: Span,
-	pub data: VariantData,
+	pub vdata: VariantData,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -33,8 +34,16 @@ pub struct FieldDef {
 }
 
 #[derive(PartialEq, Debug, Clone)]
+/// TODO
 pub struct Type {
-	// TODO
+	pub kind: TypeKind,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum TypeKind {
+	Path(Path),
+	ImplicitSelf,
+	Unit,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -96,3 +105,29 @@ pub struct Block {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Stmt {}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Impl {
+	pub trait_path: Option<Path>,
+	pub ty: Type,
+	pub items: Vec<Item<AssocItemKind>>,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Fn {
+	args: Vec<Arg>,
+	ret_ty: Type,
+	body: Option<Block>,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct TypeAlias {
+	left_ty: Type,
+	right_ty: Option<Type>,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Arg {
+	ident: Ident,
+	ty: Type,
+}
