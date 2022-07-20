@@ -165,7 +165,7 @@ impl<'a> Parser<'a> {
 				break;
 			}
 
-			let vdata = if self.consume(Token::Comma) || self.check(Token::RBrace) {
+			let vdata = if self.check(Token::Comma) || self.check(Token::RBrace) {
 				VariantData::Unit
 			} else if self.consume(Token::LBrace) {
 				let fields = self.parse_fields()?;
@@ -183,10 +183,11 @@ impl<'a> Parser<'a> {
 				));
 			};
 			variants.push(Variant { span, vdata });
-			if self.consume(Token::RBrace) {
+			if !self.consume(Token::Comma) {
 				break;
 			}
 		}
+		self.expect(Token::RBrace)?;
 		Ok((ident, ItemKind::Enum(EnumDef { variants })))
 	}
 
@@ -207,7 +208,7 @@ impl<'a> Parser<'a> {
 				self.slice()
 			));
 		};
-
+		self.expect(Token::RBrace)?;
 		Ok((ident, ItemKind::Struct(vdata)))
 	}
 
