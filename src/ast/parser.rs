@@ -33,8 +33,8 @@ impl<'a> Parser<'a> {
 	pub fn bump(&mut self) {
 		let next = self.tokens.get(self.cursor);
 		self.cursor += 1;
-		if next.is_some() {
-			let (tok, span) = next.unwrap().clone();
+		if let Some(next) = next {
+			let (tok, span) = next.clone();
 			self.token = tok;
 			self.span = span;
 		} else {
@@ -53,14 +53,14 @@ impl<'a> Parser<'a> {
 			self.src
 				.get(0..self.span.end)
 				.unwrap()
-				.matches("\n")
+				.matches('\n')
 				.count() + 1,
 			self.span.start
 				- self
 					.src
 					.get(0..self.span.end)
 					.unwrap()
-					.match_indices("\n")
+					.match_indices('\n')
 					.last()
 					.unwrap_or((1, ""))
 					.0
@@ -121,7 +121,7 @@ impl<'a> Parser<'a> {
 				return true;
 			}
 		}
-		return false;
+		false
 	}
 
 	pub fn parse_mod(&mut self) -> Result<Vec<Item>, String> {
@@ -497,13 +497,13 @@ impl<'a> Parser<'a> {
 				});
 			};
 
-			return Ok(Visibility {
+			Ok(Visibility {
 				kind: VisKind::Restricted { path },
-			});
+			})
 		} else {
-			return Ok(Visibility {
+			Ok(Visibility {
 				kind: VisKind::Public,
-			});
+			})
 		}
 	}
 
@@ -522,9 +522,14 @@ impl<'a> Parser<'a> {
 
 	// TODO: Parse expr and type paths
 	pub fn parse_path_segment(&mut self, style: &PathStyle) -> Result<PathSegment, String> {
-		Ok(PathSegment {
-			ident: self.parse_path_segment_ident()?,
-		})
+		match *style {
+			PathStyle::Mod => Ok(PathSegment {
+				ident: self.parse_path_segment_ident()?,
+			}),
+			PathStyle::Type => Ok(PathSegment {
+				ident: self.parse_path_segment_ident()?,
+			}),
+		}
 	}
 
 	pub fn parse_path_segment_ident(&mut self) -> Result<Ident, String> {

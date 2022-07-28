@@ -75,7 +75,6 @@ pub struct Path {
 }
 
 pub enum PathStyle {
-	Expr,
 	Type,
 	Mod,
 }
