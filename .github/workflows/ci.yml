@@ -1,6 +1,14 @@
-name: Coverage
+name: CI
 
-on: [pull_request, push]
+on:
+  push:
+    branches:
+      - "master"
+    paths-ignore:
+      - "*.md"
+  pull_request:
+    paths-ignore:
+      - "*.md"
 
 jobs:
   coverage:
@@ -20,3 +28,15 @@ jobs:
         with:
           files: lcov.info
           fail_ci_if_error: true
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Cargo check
+        run: cargo check
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+      - name: Run Rustfmt
+        run: cargo fmt -- --check
+      - name: Run tests
+        run: cargo test
