@@ -1,8 +1,9 @@
 use super::{
 	item::{AssocItemKind, Item, ItemKind},
 	lexer::Token,
-	Arg, Block, EnumDef, FieldDef, Fn, Ident, Impl, Path, PathSegment, PathStyle, Stmt, Type,
-	TypeAlias, TypeKind, UseTree, UseTreeKind, Variant, VariantData, VisKind, Visibility,
+	Arg, Block, EnumDef, Expr, FieldDef, Fn, Ident, Impl, ItemParseMode, Let, Path, PathSegment,
+	PathStyle, Pattern, Stmt, StmtKind, Type, TypeAlias, TypeKind, UseTree, UseTreeKind, Variant,
+	VariantData, VisKind, Visibility,
 };
 use logos::Span;
 
@@ -126,22 +127,25 @@ impl<'a> Parser<'a> {
 
 	pub fn parse_mod(&mut self) -> Result<Vec<Item>, String> {
 		let mut items = vec![];
-		while let Some(item) = self.parse_item()? {
+		while let Some(item) = self.parse_item(ItemParseMode::Mod)? {
 			items.push(item);
 		}
 		Ok(items)
 	}
 
-	pub fn parse_item(&mut self) -> Result<Option<Item>, String> {
+	pub fn parse_item(&mut self, mode: ItemParseMode) -> Result<Option<Item>, String> {
 		let vis = self.parse_visibility()?;
-		if let Some((ident, kind)) = self.parse_item_kind()? {
+		if let Some((ident, kind)) = self.parse_item_kind(mode)? {
 			Ok(Some(Item { ident, kind, vis }))
 		} else {
 			Ok(None)
 		}
 	}
 
-	pub fn parse_item_kind(&mut self) -> Result<Option<(Ident, ItemKind)>, String> {
+	pub fn parse_item_kind(
+		&mut self,
+		mode: ItemParseMode,
+	) -> Result<Option<(Ident, ItemKind)>, String> {
 		if self.consume(Token::Enum) {
 			Ok(Some(self.parse_enum()?))
 		} else if self.consume(Token::Struct) {
@@ -152,7 +156,10 @@ impl<'a> Parser<'a> {
 			Ok(Some(self.parse_test()?))
 		} else if self.consume(Token::Impl) {
 			Ok(Some(self.parse_impl()?))
-		} else if self.token == Token::Eof {
+		} else if self.token == Token::Eof
+			|| mode == ItemParseMode::Stmt
+			|| (mode == ItemParseMode::Mod && self.check(Token::RBrace))
+		{
 			Ok(None)
 		} else {
 			Err(format!(
@@ -453,16 +460,52 @@ impl<'a> Parser<'a> {
 	pub fn parse_block(&mut self) -> Result<Block, String> {
 		self.expect(Token::LBrace)?;
 		let mut stmts = vec![];
-		while let Some(stmt) = self.parse_stmt()? {
-			stmts.push(stmt);
+		while !(self.consume(Token::RBrace) || self.check(Token::Eof)) {
+			stmts.push(self.parse_stmt()?);
 		}
-		self.expect(Token::RBrace)?;
 		Ok(Block { stmts })
 	}
 
+	pub fn parse_stmt(&mut self) -> Result<Stmt, String> {
+		let kind = if self.consume(Token::Let) {
+			StmtKind::Let(self.parse_let()?)
+		} else if let Some(item) = self.parse_item(ItemParseMode::Stmt)? {
+			StmtKind::Item(item) // This should probably exclude test items in the future
+		} else {
+			let expr = self.parse_expr()?;
+			if self.consume(Token::Semicolon) {
+				StmtKind::Semi(expr)
+			} else if self.is_ahead(1, &[Token::RBrace]) {
+				StmtKind::Expr(expr)
+			} else {
+				return Err(format!("Missing semicolon at {}", self.line_column()));
+			}
+		};
+
+		Ok(Stmt { kind })
+	}
+
+	pub fn parse_let(&mut self) -> Result<Let, String> {
+		let lhs = self.parse_pattern()?;
+		if self.consume(Token::Semicolon) {
+			return Ok(Let { lhs, rhs: None });
+		}
+		self.expect(Token::Eq)?;
+		let rhs = Some(self.parse_expr()?);
+		self.expect(Token::Semicolon)?;
+		Ok(Let { lhs, rhs })
+	}
+
 	/// TODO
-	pub fn parse_stmt(&mut self) -> Result<Option<Stmt>, String> {
-		Ok(None)
+	pub fn parse_pattern(&mut self) -> Result<Pattern, String> {
+		self.parse_ident()?;
+		Ok(Pattern {})
+	}
+
+	// TODO
+	pub fn parse_expr(&mut self) -> Result<Expr, String> {
+		self.bump();
+		Ok(Expr {})
 	}
 
 	pub fn parse_rename(&mut self) -> Result<Option<Ident>, String> {

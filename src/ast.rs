@@ -103,7 +103,29 @@ pub struct Block {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct Stmt {}
+pub struct Stmt {
+	kind: StmtKind,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum StmtKind {
+	Let(Let),
+	Item(Item),
+	Expr(Expr),
+	Semi(Expr),
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Let {
+	lhs: Pattern,
+	rhs: Option<Expr>,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Expr {}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Pattern {}
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Impl {
@@ -129,4 +151,10 @@ pub struct TypeAlias {
 pub struct Arg {
 	ident: Ident,
 	ty: Type,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum ItemParseMode {
+	Mod,
+	Stmt,
 }

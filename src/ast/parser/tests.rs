@@ -2,8 +2,9 @@ use super::Parser;
 use crate::ast::{
 	item::{AssocItemKind, Item, ItemKind},
 	lexer::Token,
-	Block, EnumDef, FieldDef, Fn, Ident, Impl, Path, PathSegment, Type, TypeAlias, TypeKind,
-	UseTree, UseTreeKind, Variant, VariantData, VisKind, Visibility,
+	Block, EnumDef, Expr, FieldDef, Fn, Ident, Impl, ItemParseMode, Let, Path, PathSegment,
+	Pattern, Stmt, StmtKind, Type, TypeAlias, TypeKind, UseTree, UseTreeKind, Variant, VariantData,
+	VisKind, Visibility,
 };
 use logos::Logos;
 
@@ -12,7 +13,7 @@ fn parse_enum() {
 	let src = "enum Result { Ok, Err }";
 	let tokens = Token::lexer(src).spanned().collect();
 	let mut parser = Parser::new(tokens, src);
-	let item = parser.parse_item().unwrap().unwrap();
+	let item = parser.parse_item(ItemParseMode::Mod).unwrap().unwrap();
 	assert_eq!(
 		item,
 		Item {
@@ -41,7 +42,7 @@ fn parse_struct() {
 	let src = "struct Foo { bar: number, baz: str }";
 	let tokens = Token::lexer(src).spanned().collect();
 	let mut parser = Parser::new(tokens, src);
-	let kind = parser.parse_item_kind().unwrap().unwrap();
+	let kind = parser.parse_item_kind(ItemParseMode::Mod).unwrap().unwrap();
 	assert_eq!(
 		kind.1,
 		ItemKind::Struct(VariantData::Struct(vec![
@@ -211,7 +212,10 @@ fn parse_use_item() {
 	{
 		let tokens = Token::lexer(src).spanned().collect();
 		let mut parser = Parser::new(tokens, src);
-		assert_eq!(parser.parse_item().unwrap().unwrap(), items[i])
+		assert_eq!(
+			parser.parse_item(ItemParseMode::Mod).unwrap().unwrap(),
+			items[i]
+		)
 	}
 }
 
@@ -220,7 +224,11 @@ fn parse_test() {
 	let src = "test \"Ensure that things work\" {}";
 	let tokens = Token::lexer(src).spanned().collect();
 	let mut parser = Parser::new(tokens, src);
-	let test = parser.parse_item_kind().unwrap().unwrap().1;
+	let test = parser
+		.parse_item_kind(ItemParseMode::Mod)
+		.unwrap()
+		.unwrap()
+		.1;
 
 	assert_eq!(test, ItemKind::Test(5..30, Block { stmts: vec![] }));
 }
@@ -230,7 +238,11 @@ fn parse_impl() {
 	let src = "impl Foo for Bar { type A = B; fn baz() {} }";
 	let tokens = Token::lexer(src).spanned().collect();
 	let mut parser = Parser::new(tokens, src);
-	let kind = parser.parse_item_kind().unwrap().unwrap().1;
+	let kind = parser
+		.parse_item_kind(ItemParseMode::Mod)
+		.unwrap()
+		.unwrap()
+		.1;
 	assert_eq!(
 		kind,
 		ItemKind::Impl(Impl {
@@ -284,5 +296,24 @@ fn parse_impl() {
 				},
 			]
 		})
+	)
+}
+
+#[test]
+fn parse_block() {
+	let src = "{ let foo = 5; }";
+	let tokens = Token::lexer(src).spanned().collect();
+	let mut parser = Parser::new(tokens, src);
+	let block = parser.parse_block().unwrap();
+	assert_eq!(
+		block,
+		Block {
+			stmts: vec![Stmt {
+				kind: StmtKind::Let(Let {
+					lhs: Pattern {},
+					rhs: Some(Expr {})
+				})
+			}]
+		}
 	)
 }
