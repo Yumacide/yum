@@ -65,10 +65,11 @@ impl<'a> Parser<'a> {
 			Ok(())
 		} else {
 			bail!(
-				"Expected {:?}, found {:?} '{}'",
+				"Expected {:?}, found {:?} '{}' at {}",
 				token,
 				self.token,
-				self.slice()
+				self.slice(),
+				self.line_column()
 			)
 		}
 	}
@@ -141,6 +142,8 @@ impl<'a> Parser<'a> {
 			Ok(Some(self.parse_test()?))
 		} else if self.consume(Token::Impl) {
 			Ok(Some(self.parse_impl()?))
+		} else if self.consume(Token::Let) {
+			Ok(Some(self.parse_let_item()?))
 		} else if self.token == Token::Eof
 			|| mode == ItemParseMode::Stmt
 			|| (mode == ItemParseMode::Mod && self.check(Token::RBrace))
@@ -449,7 +452,7 @@ impl<'a> Parser<'a> {
 
 	pub fn parse_stmt(&mut self) -> Result<Stmt> {
 		let kind = if self.consume(Token::Let) {
-			StmtKind::Let(self.parse_let()?)
+			StmtKind::Let(self.parse_let(false)?)
 		} else if let Some(item) = self.parse_item(ItemParseMode::Stmt)? {
 			StmtKind::Item(item) // This should probably exclude test items in the future
 		} else {
@@ -466,8 +469,8 @@ impl<'a> Parser<'a> {
 		Ok(Stmt { kind })
 	}
 
-	pub fn parse_let(&mut self) -> Result<Let> {
-		let lhs = self.parse_pattern()?;
+	pub fn parse_let(&mut self, allow_refute: bool) -> Result<Let> {
+		let lhs = self.parse_pattern(allow_refute)?;
 		if self.consume(Token::Semicolon) {
 			return Ok(Let { lhs, rhs: None });
 		}
@@ -477,8 +480,13 @@ impl<'a> Parser<'a> {
 		Ok(Let { lhs, rhs })
 	}
 
+	pub fn parse_let_item(&mut self) -> Result<(Ident, ItemKind)> {
+		let decl = self.parse_let(false)?;
+		Ok((Ident::empty(), ItemKind::Let(decl)))
+	}
+
 	/// TODO
-	pub fn parse_pattern(&mut self) -> Result<Pattern> {
+	pub fn parse_pattern(&mut self, _allow_refute: bool) -> Result<Pattern> {
 		self.parse_ident()?;
 		Ok(Pattern {})
 	}

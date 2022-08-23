@@ -1,4 +1,4 @@
-use super::{Block, EnumDef, Fn, Ident, Impl, TypeAlias, UseTree, VariantData, Visibility};
+use super::{Block, EnumDef, Fn, Ident, Impl, Let, TypeAlias, UseTree, VariantData, Visibility};
 use logos::Span;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -15,6 +15,7 @@ pub enum ItemKind {
 	Use(UseTree),
 	Test(Span, Block),
 	Impl(Impl),
+	Let(Let),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

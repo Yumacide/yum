@@ -6,7 +6,7 @@ use crate::ast::{
 	Pattern, Stmt, StmtKind, Type, TypeAlias, TypeKind, UseTree, UseTreeKind, Variant, VariantData,
 	VisKind, Visibility,
 };
-use logos::Logos;
+use logos::{Logos, Span};
 
 #[test]
 fn parse_enum() {
@@ -316,4 +316,23 @@ fn parse_block() {
 			}]
 		}
 	)
+}
+
+#[test]
+fn parse_let_item() {
+	let src = "let foo = 5;";
+	let tokens: Vec<(Token, Span)> = Token::lexer(src).spanned().collect();
+	let mut parser = Parser::new(tokens.clone(), src);
+	let decl = parser
+		.parse_item_kind(ItemParseMode::Mod)
+		.unwrap()
+		.unwrap()
+		.1;
+
+	let mut parser2 = Parser::new(tokens, src);
+	parser2.bump();
+	match decl {
+		ItemKind::Let(decl) => assert_eq!(decl, parser2.parse_let(false).unwrap()),
+		_ => unreachable!(),
+	}
 }
