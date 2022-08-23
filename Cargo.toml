@@ -7,4 +7,5 @@ description = "The compiler for the Yum language"
 
 [dependencies]
 logos = "0.12.1"
-clap = { version = "3.2.8", features = [ "cargo" ]}
+clap = { version = "3.2.8", features = [ "derive" ]}
+anyhow = "1.0.62"

@@ -5,6 +5,7 @@ use super::{
 	PathStyle, Pattern, Stmt, StmtKind, Type, TypeAlias, TypeKind, UseTree, UseTreeKind, Variant,
 	VariantData, VisKind, Visibility,
 };
+use anyhow::{bail, Result};
 use logos::Span;
 
 #[cfg(test)]
@@ -68,31 +69,28 @@ impl<'a> Parser<'a> {
 		)
 	}
 
-	pub fn expect(&mut self, token: Token) -> Result<(), String> {
+	pub fn expect(&mut self, token: Token) -> Result<()> {
 		if self.token == token {
 			self.bump();
 			Ok(())
 		} else {
-			Err(format!(
+			bail!(
 				"Expected {:?}, found {:?} '{}'",
 				token,
 				self.token,
 				self.slice()
-			))
+			)
 		}
 	}
 
-	pub fn expect_one_of(&mut self, tokens: &[Token]) -> Result<(), String> {
+	pub fn expect_one_of(&mut self, tokens: &[Token]) -> Result<()> {
 		for token in tokens {
 			if self.token == *token {
 				self.bump();
 				return Ok(());
 			}
 		}
-		Err(format!(
-			"Expected one of {:?}, found {:?}",
-			tokens, self.token
-		))
+		bail!("Expected one of {:?}, found {:?}", tokens, self.token)
 	}
 
 	pub fn consume(&mut self, token: Token) -> bool {
@@ -125,7 +123,7 @@ impl<'a> Parser<'a> {
 		false
 	}
 
-	pub fn parse_mod(&mut self) -> Result<Vec<Item>, String> {
+	pub fn parse_mod(&mut self) -> Result<Vec<Item>> {
 		let mut items = vec![];
 		while let Some(item) = self.parse_item(ItemParseMode::Mod)? {
 			items.push(item);
@@ -133,7 +131,7 @@ impl<'a> Parser<'a> {
 		Ok(items)
 	}
 
-	pub fn parse_item(&mut self, mode: ItemParseMode) -> Result<Option<Item>, String> {
+	pub fn parse_item(&mut self, mode: ItemParseMode) -> Result<Option<Item>> {
 		let vis = self.parse_visibility()?;
 		if let Some((ident, kind)) = self.parse_item_kind(mode)? {
 			Ok(Some(Item { ident, kind, vis }))
@@ -142,10 +140,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 
-	pub fn parse_item_kind(
-		&mut self,
-		mode: ItemParseMode,
-	) -> Result<Option<(Ident, ItemKind)>, String> {
+	pub fn parse_item_kind(&mut self, mode: ItemParseMode) -> Result<Option<(Ident, ItemKind)>> {
 		if self.consume(Token::Enum) {
 			Ok(Some(self.parse_enum()?))
 		} else if self.consume(Token::Struct) {
@@ -162,16 +157,16 @@ impl<'a> Parser<'a> {
 		{
 			Ok(None)
 		} else {
-			Err(format!(
+			bail!(
 				"Expected item, found {:?} '{}' at {}",
 				self.token,
 				self.slice(),
 				self.line_column()
-			))
+			)
 		}
 	}
 
-	pub fn parse_enum(&mut self) -> Result<(Ident, ItemKind), String> {
+	pub fn parse_enum(&mut self) -> Result<(Ident, ItemKind)> {
 		let mut variants = vec![];
 		let ident = self.parse_ident()?;
 		self.expect(Token::LBrace)?;
@@ -191,12 +186,12 @@ impl<'a> Parser<'a> {
 				let fields = self.parse_fields_tuple()?;
 				VariantData::Tuple(fields)
 			} else {
-				return Err(format!(
+				bail!(
 					"Expected enum variant, found {:?} '{}' at {}",
 					self.token,
 					self.slice(),
 					self.line_column()
-				));
+				);
 			};
 			variants.push(Variant { span, vdata });
 			if !self.consume(Token::Comma) {
@@ -207,7 +202,7 @@ impl<'a> Parser<'a> {
 		Ok((ident, ItemKind::Enum(EnumDef { variants })))
 	}
 
-	pub fn parse_struct(&mut self) -> Result<(Ident, ItemKind), String> {
+	pub fn parse_struct(&mut self) -> Result<(Ident, ItemKind)> {
 		let ident = self.parse_ident()?;
 		let vdata = if self.consume(Token::Semicolon) {
 			VariantData::Unit
@@ -218,17 +213,17 @@ impl<'a> Parser<'a> {
 			let fields = self.parse_fields_tuple()?;
 			VariantData::Tuple(fields)
 		} else {
-			return Err(format!(
+			bail!(
 				"Expected struct definition, found {:?} '{}'",
 				self.token,
 				self.slice()
-			));
+			);
 		};
 		self.expect(Token::RBrace)?;
 		Ok((ident, ItemKind::Struct(vdata)))
 	}
 
-	pub fn parse_fields(&mut self) -> Result<Vec<FieldDef>, String> {
+	pub fn parse_fields(&mut self) -> Result<Vec<FieldDef>> {
 		let mut fields = vec![];
 		loop {
 			if self.consume(Token::RBrace) {
@@ -247,20 +242,19 @@ impl<'a> Parser<'a> {
 		Ok(fields)
 	}
 
-	pub fn parse_use(&mut self) -> Result<(Ident, ItemKind), String> {
+	pub fn parse_use(&mut self) -> Result<(Ident, ItemKind)> {
 		let tree = self.parse_use_tree()?;
 		if !self.consume(Token::Semicolon) {
-			return Err((match tree.kind {
+			bail!(match tree.kind {
 				UseTreeKind::Glob => "the wildcard token must be last on the path",
 				UseTreeKind::Nested(..) => "glob-like brace syntax must be last on the path",
 				_ => "",
-			})
-			.to_string());
+			});
 		};
 		Ok((Ident::empty(), ItemKind::Use(tree)))
 	}
 
-	pub fn parse_use_tree(&mut self) -> Result<UseTree, String> {
+	pub fn parse_use_tree(&mut self) -> Result<UseTree> {
 		let mut prefix = Path {
 			segments: Vec::new(),
 		};
@@ -288,7 +282,7 @@ impl<'a> Parser<'a> {
 		Ok(UseTree { prefix, kind })
 	}
 
-	pub fn parse_use_tree_glob_or_nested(&mut self) -> Result<UseTreeKind, String> {
+	pub fn parse_use_tree_glob_or_nested(&mut self) -> Result<UseTreeKind> {
 		Ok(if self.consume(Token::Star) {
 			UseTreeKind::Glob
 		} else {
@@ -296,7 +290,7 @@ impl<'a> Parser<'a> {
 		})
 	}
 
-	pub fn parse_use_tree_list(&mut self) -> Result<Vec<UseTree>, String> {
+	pub fn parse_use_tree_list(&mut self) -> Result<Vec<UseTree>> {
 		let mut list = vec![];
 		self.expect(Token::LBrace)?;
 		loop {
@@ -309,7 +303,7 @@ impl<'a> Parser<'a> {
 		Ok(list)
 	}
 
-	pub fn parse_fields_tuple(&mut self) -> Result<Vec<FieldDef>, String> {
+	pub fn parse_fields_tuple(&mut self) -> Result<Vec<FieldDef>> {
 		self.expect(Token::LParen)?;
 		let mut fields = vec![];
 		loop {
@@ -331,14 +325,14 @@ impl<'a> Parser<'a> {
 		Ok(fields)
 	}
 
-	pub fn parse_test(&mut self) -> Result<(Ident, ItemKind), String> {
+	pub fn parse_test(&mut self) -> Result<(Ident, ItemKind)> {
 		let span = self.span.clone();
 		self.expect(Token::String)?;
 		let block = self.parse_block()?;
 		Ok((Ident::empty(), ItemKind::Test(span, block)))
 	}
 
-	pub fn parse_impl(&mut self) -> Result<(Ident, ItemKind), String> {
+	pub fn parse_impl(&mut self) -> Result<(Ident, ItemKind)> {
 		let ty = self.parse_type()?;
 		let trait_path = if self.consume(Token::For) {
 			Some(self.parse_path(PathStyle::Type)?)
@@ -362,10 +356,7 @@ impl<'a> Parser<'a> {
 		))
 	}
 
-	pub fn parse_assoc_item(
-		&mut self,
-		req_body: bool,
-	) -> Result<Option<Item<AssocItemKind>>, String> {
+	pub fn parse_assoc_item(&mut self, req_body: bool) -> Result<Option<Item<AssocItemKind>>> {
 		let vis = self.parse_visibility()?;
 		let info = if self.consume(Token::Type) {
 			Some(self.parse_type_alias(req_body)?)
@@ -374,11 +365,11 @@ impl<'a> Parser<'a> {
 		} else if self.check(Token::RBrace) {
 			return Ok(None);
 		} else {
-			return Err(format!(
+			bail!(
 				"Expected associated item, found {:?} '{}'",
 				self.token,
 				self.slice(),
-			));
+			);
 		};
 
 		match info {
@@ -387,7 +378,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 
-	pub fn parse_type_alias(&mut self, right_req: bool) -> Result<(Ident, AssocItemKind), String> {
+	pub fn parse_type_alias(&mut self, right_req: bool) -> Result<(Ident, AssocItemKind)> {
 		let left_ty = self.parse_type()?;
 		let right_ty = if right_req {
 			self.expect(Token::Eq)?;
@@ -404,7 +395,7 @@ impl<'a> Parser<'a> {
 	}
 
 	/// TODO
-	pub fn parse_assoc_fn(&mut self, req_body: bool) -> Result<(Ident, AssocItemKind), String> {
+	pub fn parse_assoc_fn(&mut self, req_body: bool) -> Result<(Ident, AssocItemKind)> {
 		let ident = self.parse_ident()?;
 		let args = self.parse_args()?;
 		let ret_ty = if self.consume(Token::Arrow) {
@@ -424,7 +415,7 @@ impl<'a> Parser<'a> {
 	}
 
 	/// TODO
-	pub fn parse_args(&mut self) -> Result<Vec<Arg>, String> {
+	pub fn parse_args(&mut self) -> Result<Vec<Arg>> {
 		let mut args = vec![];
 		self.expect(Token::LParen)?;
 		loop {
@@ -441,11 +432,11 @@ impl<'a> Parser<'a> {
 			} else if self.consume(Token::RParen) {
 				break;
 			} else {
-				return Err(format!(
+				bail!(
 					"Expected function argument, found {:?} '{:?}'",
 					self.token,
 					self.slice()
-				));
+				);
 			};
 
 			args.push(Arg { ident, ty });
@@ -457,7 +448,7 @@ impl<'a> Parser<'a> {
 		Ok(args)
 	}
 
-	pub fn parse_block(&mut self) -> Result<Block, String> {
+	pub fn parse_block(&mut self) -> Result<Block> {
 		self.expect(Token::LBrace)?;
 		let mut stmts = vec![];
 		while !(self.consume(Token::RBrace) || self.check(Token::Eof)) {
@@ -466,7 +457,7 @@ impl<'a> Parser<'a> {
 		Ok(Block { stmts })
 	}
 
-	pub fn parse_stmt(&mut self) -> Result<Stmt, String> {
+	pub fn parse_stmt(&mut self) -> Result<Stmt> {
 		let kind = if self.consume(Token::Let) {
 			StmtKind::Let(self.parse_let()?)
 		} else if let Some(item) = self.parse_item(ItemParseMode::Stmt)? {
@@ -478,14 +469,14 @@ impl<'a> Parser<'a> {
 			} else if self.is_ahead(1, &[Token::RBrace]) {
 				StmtKind::Expr(expr)
 			} else {
-				return Err(format!("Missing semicolon at {}", self.line_column()));
+				bail!("Missing semicolon at {}", self.line_column());
 			}
 		};
 
 		Ok(Stmt { kind })
 	}
 
-	pub fn parse_let(&mut self) -> Result<Let, String> {
+	pub fn parse_let(&mut self) -> Result<Let> {
 		let lhs = self.parse_pattern()?;
 		if self.consume(Token::Semicolon) {
 			return Ok(Let { lhs, rhs: None });
@@ -497,18 +488,18 @@ impl<'a> Parser<'a> {
 	}
 
 	/// TODO
-	pub fn parse_pattern(&mut self) -> Result<Pattern, String> {
+	pub fn parse_pattern(&mut self) -> Result<Pattern> {
 		self.parse_ident()?;
 		Ok(Pattern {})
 	}
 
 	// TODO
-	pub fn parse_expr(&mut self) -> Result<Expr, String> {
+	pub fn parse_expr(&mut self) -> Result<Expr> {
 		self.bump();
 		Ok(Expr {})
 	}
 
-	pub fn parse_rename(&mut self) -> Result<Option<Ident>, String> {
+	pub fn parse_rename(&mut self) -> Result<Option<Ident>> {
 		if self.consume(Token::As) {
 			Ok(Some(self.parse_ident()?))
 		} else {
@@ -516,7 +507,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 
-	pub fn parse_visibility(&mut self) -> Result<Visibility, String> {
+	pub fn parse_visibility(&mut self) -> Result<Visibility> {
 		if !self.consume(Token::Pub) {
 			return Ok(Visibility {
 				kind: VisKind::Inherited,
@@ -550,7 +541,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 
-	pub fn parse_path(&mut self, style: PathStyle) -> Result<Path, String> {
+	pub fn parse_path(&mut self, style: PathStyle) -> Result<Path> {
 		let mut segments = vec![];
 		loop {
 			let segment = self.parse_path_segment(&style)?;
@@ -564,7 +555,7 @@ impl<'a> Parser<'a> {
 	}
 
 	// TODO: Parse expr and type paths
-	pub fn parse_path_segment(&mut self, style: &PathStyle) -> Result<PathSegment, String> {
+	pub fn parse_path_segment(&mut self, style: &PathStyle) -> Result<PathSegment> {
 		match *style {
 			PathStyle::Mod => Ok(PathSegment {
 				ident: self.parse_path_segment_ident()?,
@@ -575,29 +566,25 @@ impl<'a> Parser<'a> {
 		}
 	}
 
-	pub fn parse_path_segment_ident(&mut self) -> Result<Ident, String> {
+	pub fn parse_path_segment_ident(&mut self) -> Result<Ident> {
 		let span = self.span.clone();
 		self.expect_one_of(&[Token::Ident, Token::Crate, Token::SelfLower, Token::Super])?;
 		Ok(Ident { span })
 	}
 
 	/// TODO
-	pub fn parse_type(&mut self) -> Result<Type, String> {
+	pub fn parse_type(&mut self) -> Result<Type> {
 		let kind = if self.check(Token::LParen) && self.is_ahead(1, &[Token::RParen]) {
 			TypeKind::Unit
 		} else if self.check(Token::Ident) {
 			TypeKind::Path(self.parse_path(PathStyle::Type)?)
 		} else {
-			return Err(format!(
-				"Expected type, found {:?} '{:?}'",
-				self.token,
-				self.slice()
-			));
+			bail!("Expected type, found {:?} '{:?}'", self.token, self.slice());
 		};
 		Ok(Type { kind })
 	}
 
-	pub fn parse_ident(&mut self) -> Result<Ident, String> {
+	pub fn parse_ident(&mut self) -> Result<Ident> {
 		let span = self.span.clone();
 		self.expect(Token::Ident)?;
 		Ok(Ident { span })
