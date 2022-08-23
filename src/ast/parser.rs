@@ -50,23 +50,13 @@ impl<'a> Parser<'a> {
 	}
 
 	pub fn line_column(&self) -> String {
-		format!(
-			"line {} column {}",
-			self.src
-				.get(0..self.span.end)
-				.unwrap()
-				.matches('\n')
-				.count() + 1,
-			self.span.start
-				- self
-					.src
-					.get(0..self.span.end)
-					.unwrap()
-					.match_indices('\n')
-					.last()
-					.unwrap_or((1, ""))
-					.0
-		)
+		let lines: Vec<&str> = self
+			.src
+			.get(0..self.span.start + 1)
+			.unwrap()
+			.lines()
+			.collect();
+		format!("{}:{}", lines.len(), lines.last().unwrap().len())
 	}
 
 	pub fn expect(&mut self, token: Token) -> Result<()> {
